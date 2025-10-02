@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DES Encryption Visualization (Step-Through)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f9;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        #status {
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            color: #333;
+            min-height: 25px;
+            font-weight: bold;
+        }
+
+        /* Outer container for the entire diagram area */
+        #diagram-area {
+            position: relative;
+            width: 700px; /* Fixed width for the whole system */
+            min-height: 600px;
+            background: #fff;
+            border: 2px solid #ccc; /* Border around the main DES structure */
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Inner container for the permutation and rounds flow */
+        #des-flow {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+        }
+
+        /* General box styling for DES components */
+        .des-box {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        /* Input/Output Labels */
+        .io-label {
+            font-size: 0.9em;
+            margin: 5px 0;
+            color: #555;
+        }
+
+        /* Yellow steps (IP and FP) */
+        .yellow-step {
+            background-color: #ffcc00;
+            border: 1px solid #e6b800;
+        }
+
+        /* Round steps */
+        .round-step {
+            background-color: #e0e0e0; /* Neutral color for rounds */
+            border: 1px solid #b0b0b0;
+        }
+        
+        /* Key Generator Box */
+        #key-generator-box {
+            position: absolute;
+            right: 40px; /* Positioned relative to diagram-area */
+            top: 150px; 
+            width: 150px;
+            height: 350px; 
+            background-color: #ff8c00;
+            border: 2px solid #cc7000;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border-radius: 8px;
+            line-height: 1.4;
+        }
+        
+        #key-generator-box strong {
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+
+        /* Subkey Lines and Labels (Positioned relative to the diagram-area) */
+        .subkey-label-container {
+            position: absolute;
+            right: 195px; /* Between Key Gen and Rounds */
+            text-align: right;
+            color: #cc0000;
+            font-weight: bold;
+            font-size: 0.9em;
+            pointer-events: none; /* Allows clicks to pass through */
+        }
+
+        /* Vertically aligning the subkey labels with their respective rounds */
+        #subkey-1-container { top: 220px; }
+        #subkey-2-container { top: 275px; }
+        #subkey-dots-container { top: 330px; }
+        #subkey-16-container { top: 440px; }
+
+
+        /* Active state for animation */
+        .active-step {
+            box-shadow: 0 0 15px 5px rgba(0, 123, 255, 0.8);
+            border: 2px solid #007bff;
+            transform: scale(1.05);
+            font-weight: bold;
+            background-color: #d8eeff; /* Light blue highlight */
+        }
+
+        .active-key {
+            color: white !important;
+            background-color: #cc0000; /* Red background for the key text */
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        /* Controls */
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>DES Encryption Visualization</h1>
+    <div id="status">Click 'Start' to begin the DES process.</div>
+
+    <div class="controls">
+        <button onclick="startDES()" id="start-btn">Start</button>
+        <button onclick="nextStep()" id="next-btn" disabled>Next Step</button>
+        <button onclick="resetDES()" id="reset-btn">Reset</button>
+    </div>
+
+    <div id="diagram-area">
+        
+        <div id="key-generator-box">
+            <strong>Round-key generator</strong>
+            <small>Input: 56-bit Cipher Key</small>
+        </div>
+
+        <div class="subkey-label-container" id="subkey-1-container">
+            K₁ (48-bit)
+        </div>
+        <div class="subkey-label-container" id="subkey-2-container">
+            K₂ (48-bit)
+        </div>
+        <div class="subkey-label-container" id="subkey-dots-container" style="font-size: 1.5em; right: 260px;">
+            ⋮
+        </div>
+        <div class="subkey-label-container" id="subkey-16-container">
+            K₁₆ (48-bit)
+        </div>
+
+
+        <div id="des-flow">
+            <div class="io-label">64-bit Plaintext ↓</div>
+            
+            <div id="step-0" class="des-box yellow-step">Initial Permutation (IP)</div>
+
+            <div id="step-1" class="des-box round-step">Round 1 (Feistel Structure)</div>
+            <div id="step-2" class="des-box round-step">Round 2 (Feistel Structure)</div>
+            <div class="des-box round-step" style="height: 30px; display: flex; align-items: center; justify-content: center;">... (Rounds 3-15)</div>
+            <div id="step-16" class="des-box round-step">Round 16 (Feistel Structure)</div>
+
+            <div id="step-17" class="des-box yellow-step">Final Permutation (FP)</div>
+
+            <div class="io-label">64-bit Ciphertext ↓</div>
+        </div>
+        
+    </div>
+
+    <script>
+        const steps = [];
+        for (let i = 0; i <= 17; i++) {
+            const stepElement = document.getElementById(`step-${i}`);
+            if (stepElement) {
+                steps.push(stepElement);
+            }
+        }
+
+        const subkeys = {};
+        for (let i = 1; i <= 16; i++) {
+            const subkeyContainer = document.getElementById(`subkey-${i}-container`);
+            if (subkeyContainer) {
+                subkeys[i] = subkeyContainer;
+            }
+        }
+
+        let currentStep = -1;
+        const statusDiv = document.getElementById('status');
+        const nextButton = document.getElementById('next-btn');
+        const startButton = document.getElementById('start-btn');
+
+        const stepDescriptions = [
+            "0. Initial Permutation (IP): The 64-bit plaintext bits are rearranged.",
+            "1. Round 1: The first of 16 Feistel rounds. A 48-bit subkey (K₁) is used from the generator.",
+            "2. Round 2: Uses K₂. In a Feistel round, half the data is XORed with a function of the other half and the subkey.",
+            "3. Round 3: Uses K₃. The data halves are swapped.",
+            "4. Round 4: Uses K₄.",
+            "5. Round 5: Uses K₅.",
+            "6. Round 6: Uses K₆.",
+            "7. Round 7: Uses K₇.",
+            "8. Round 8: Uses K₈.",
+            "9. Round 9: Uses K₉.",
+            "10. Round 10: Uses K₁₀.",
+            "11. Round 11: Uses K₁₁.",
+            "12. Round 12: Uses K₁₂.",
+            "13. Round 13: Uses K₁₃.",
+            "14. Round 14: Uses K₁₄.",
+            "15. Round 15: Uses K₁₅.",
+            "16. Round 16: The final Feistel round. Uses K₁₆. The data halves are NOT swapped after this round.",
+            "17. Final Permutation (FP): The inverse of IP is applied to the result, producing the 64-bit ciphertext.",
+        ];
+
+        function highlightStep(index) {
+            // Clear all highlights
+            steps.forEach(step => step.classList.remove('active-step'));
+            Object.values(subkeys).forEach(key => key.classList.remove('active-key'));
+
+            // Apply highlight to current step
+            if (steps[index]) {
+                steps[index].classList.add('active-step');
+                statusDiv.textContent = stepDescriptions[index];
+            }
+            
+            // Highlight Subkey for rounds (1 through 16)
+            if (index >= 1 && index <= 16) {
+                if (subkeys[index]) {
+                    subkeys[index].classList.add('active-key');
+                }
+            }
+        }
+
+        function startDES() {
+            currentStep = -1;
+            nextButton.disabled = false;
+            startButton.disabled = true;
+            nextStep(); // Start with step 0 (IP)
+        }
+
+        function nextStep() {
+            currentStep++;
+            if (currentStep < steps.length) {
+                highlightStep(currentStep);
+            } else {
+                statusDiv.textContent = "DES Encryption Complete! The 64-bit Ciphertext is produced.";
+                nextButton.disabled = true;
+            }
+        }
+
+        function resetDES() {
+            currentStep = -1;
+            steps.forEach(step => step.classList.remove('active-step'));
+            Object.values(subkeys).forEach(key => key.classList.remove('active-key'));
+            statusDiv.textContent = "Click 'Start' to begin the DES process.";
+            nextButton.disabled = true;
+            startButton.disabled = false;
+        }
+
+        // Initial setup on load
+        window.onload = resetDES;
+    </script>
+</body>
+</html>
